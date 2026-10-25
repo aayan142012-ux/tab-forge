@@ -45,6 +45,14 @@ main{min-width:0}.topbar{height:70px;background:#fff;border-bottom:1px solid var
 <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
 <script>
 const STORE='tabforge_ap_v1';
+     
+const SUPABASE_URL = 'https://azopkodsvzxicxprbazy.supabase.co';
+const SUPABASE_KEY = 'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+ 
 const defaultState={meta:{name:'Club Tournament 2026',format:'Asian Parliamentary',rounds:5,openBreak:8,highSchoolBreak:8},participants:[],institutions:[],teams:[],adjudicators:[],motions:[],draws:{},ballots:[],replyScores:[],breakingAdjs:[],published:false};
 let S=load(),page='dashboard',searchTerm='';
 function load(){try{const raw=localStorage.getItem(STORE);return raw?JSON.parse(raw):JSON.parse(JSON.stringify(defaultState))}catch(e){return JSON.parse(JSON.stringify(defaultState))}}
