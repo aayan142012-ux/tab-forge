@@ -254,7 +254,10 @@ async function tfBoot() {
   }
 }
 
-    async function tfSignOut() {);
+    async function tfSignOut() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
    tfBoot();
   </script>
   </body>
