@@ -53,10 +53,211 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_KEY
 );
  
+const TF_ALLOWED_EMAILS = [
+  'aayan142012@gmail.com',
+  'anmtopesh@gmail.com'
+];
+
+let tfSyncReady = false;
+let tfSyncTimer = null;
+let tfCurrentEmail = '';
+
+function tfShowLogin(message = '') {
+  let gate = document.getElementById('tf-login-gate');
+
+  if (!gate) {
+    gate = document.createElement('div');
+    gate.id = 'tf-login-gate';
+    gate.style.cssText = `
+      position:fixed;inset:0;z-index:99999;
+      background:#f4f6fb;display:flex;
+      align-items:center;justify-content:center;
+      padding:20px;font-family:Arial,sans-serif;
+    `;
+
+    gate.innerHTML = `
+      <form id="tf-login-form" style="
+        background:white;padding:28px;border-radius:16px;
+        width:100%;max-width:390px;box-sizing:border-box;
+        box-shadow:0 8px 35px #0001">
+        <h2 style="margin-top:0">TabForge Login</h2>
+        <p>Sign in with an approved email address.</p>
+        <input id="tf-login-email" type="email"
+          placeholder="Your email address" required
+          style="width:100%;padding:12px;box-sizing:border-box;
+          margin:8px 0 14px;border:1px solid #ccd2df;
+          border-radius:8px">
+        <button type="submit" id="tf-login-submit"
+          style="width:100%;padding:12px;border:0;
+          border-radius:8px;background:#3157d5;color:white;
+          cursor:pointer">
+          Send login link
+        </button>
+        <p id="tf-login-message" role="status"
+          style="overflow-wrap:anywhere;font-size:14px"></p>
+      </form>
+    `;
+
+    document.body.appendChild(gate);
+
+    document.getElementById('tf-login-form')
+      .addEventListener('submit', async event => {
+        event.preventDefault();
+
+        const email = document.getElementById('tf-login-email')
+          .value.trim().toLowerCase();
+        const status = document.getElementById('tf-login-message');
+        const button = document.getElementById('tf-login-submit');
+
+        if (!TF_ALLOWED_EMAILS.includes(email)) {
+          status.textContent = 'This email is not approved for TabForge.';
+          return;
+        }
+
+        button.disabled = true;
+        status.textContent = 'Sending login link...';
+
+        try {
+          const { error } = await supabaseClient.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: window.location.origin,
+              shouldCreateUser: false
+            }
+          });
+
+          if (error) throw error;
+
+          status.textContent =
+            'Check your email and open the TabForge login link.';
+        } catch (error) {
+          status.textContent = error.message || 'Unable to send login link.';
+        } finally {
+          button.disabled = false;
+        }
+      });
+  }
+
+  document.getElementById('tf-login-message').textContent = message;
+  gate.style.display = 'flex';
+}
+
 const defaultState={meta:{name:'Club Tournament 2026',format:'Asian Parliamentary',rounds:5,openBreak:8,highSchoolBreak:8},participants:[],institutions:[],teams:[],adjudicators:[],motions:[],draws:{},ballots:[],replyScores:[],breakingAdjs:[],published:false};
 let S=load(),page='dashboard',searchTerm='';
-function load(){try{const raw=localStorage.getItem(STORE);return raw?JSON.parse(raw):JSON.parse(JSON.stringify(defaultState))}catch(e){return JSON.parse(JSON.stringify(defaultState))}}
-function save(){try{localStorage.setItem(STORE,JSON.stringify(S));return true}catch(e){toast('Browser storage is blocked or full. Export a backup and open this file directly in Safari.');return false}}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    return raw
+      ? JSON.parse(raw)
+      : JSON.parse(JSON.stringify(defaultState));
+  } catch (e) {
+    return JSON.parse(JSON.stringify(defaultState));
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(S));
+  } catch (e) {
+    console.warn('Local backup failed:', e);
+  }
+
+  if (!tfSyncReady) return true;
+
+  clearTimeout(tfSyncTimer);
+
+  tfSyncTimer = setTimeout(async () => {
+    const snapshot = JSON.parse(JSON.stringify(S));
+
+    const { error } = await supabaseClient
+      .from('tabforge_shared')
+      .upsert({
+        id: 1,
+        tournament_data: snapshot,
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error('Shared save failed:', error);
+      toast('Shared save failed. Check your connection.');
+    }
+  }, 500);
+
+  return true;
+}
+
+async function tfBoot() {
+  tfSyncReady = false;
+  tfShowLogin('Checking your login...');
+
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+
+    let session = data.session;
+
+    if (!session) {
+      tfShowLogin('Sign in to access the shared tournament.');
+      return;
+    }
+
+    const email = session.user.email?.toLowerCase();
+
+    if (!TF_ALLOWED_EMAILS.includes(email)) {
+      await supabaseClient.auth.signOut();
+      tfShowLogin('This email is not approved for TabForge.');
+      return;
+    }
+
+    tfCurrentEmail = email;
+
+    const { data: row, error: readError } = await supabaseClient
+      .from('tabforge_shared')
+      .select('tournament_data')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (readError) throw readError;
+
+    if (row) {
+      S = row.tournament_data;
+    } else {
+      S = JSON.parse(JSON.stringify(defaultState));
+
+      const { error: insertError } = await supabaseClient
+        .from('tabforge_shared')
+        .insert({
+          id: 1,
+          tournament_data: S,
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) throw insertError;
+    }
+
+    tfSyncReady = true;
+    document.getElementById('tf-login-gate')?.remove();
+    render();
+
+  } catch (error) {
+    tfSyncReady = false;
+    tfShowLogin('Could not load shared data: ' + error.message);
+  }
+}
+
+async function tfSignOut() {
+  tfSyncReady = false;
+  const { error } = await supabaseClient.auth.signOut();
+
+  if (error) {
+    alert('Sign-out failed: ' + error.message);
+    return;
+  }
+
+  location.reload();
+}
+
 window.addEventListener('error',function(e){const c=document.getElementById('content');if(c)c.innerHTML='<div class="panel"><h2>TabForge could not start</h2><p>Something in this browser prevented the app from loading. Open the downloaded HTML file directly in Safari or Chrome, not in an in-app file preview. If this continues, send the error text to support.</p><pre style="white-space:pre-wrap;color:#b42318">'+String(e.message||'Unknown JavaScript error').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})+'</pre></div>';});
 function uid(){return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
