@@ -187,15 +187,18 @@ function save() {
   return true;
 }
 
+
 async function tfBoot() {
   tfSyncReady = false;
   tfShowLogin('Checking your login...');
 
   try {
-    const { data, error } = await supabaseClient.auth.getSession();
+    const { data, error } =
+      await supabaseClient.auth.getSession();
+
     if (error) throw error;
 
-    let session = data.session;
+    const session = data.session;
 
     if (!session) {
       tfShowLogin('Sign in to access the shared tournament.');
@@ -212,11 +215,12 @@ async function tfBoot() {
 
     tfCurrentEmail = email;
 
-    const { data: row, error: readError } = await supabaseClient
-      .from('tabforge_shared')
-      .select('tournament_data')
-      .eq('id', 1)
-      .maybeSingle();
+    const { data: row, error: readError } =
+      await supabaseClient
+        .from('tabforge_shared')
+        .select('tournament_data')
+        .eq('id', 1)
+        .maybeSingle();
 
     if (readError) throw readError;
 
@@ -225,27 +229,37 @@ async function tfBoot() {
     } else {
       S = JSON.parse(JSON.stringify(defaultState));
 
-      const { error: insertError } = await supabaseClient
-        .from('tabforge_shared')
-        .insert({
-          id: 1,
-          tournament_data: S,
-          updated_at: new Date().toISOString()
-        });
+      const { error: insertError } =
+        await supabaseClient
+          .from('tabforge_shared')
+          .insert({
+            id: 1,
+            tournament_data: S,
+            updated_at: new Date().toISOString()
+          });
 
       if (insertError) throw insertError;
     }
 
     tfSyncReady = true;
     document.getElementById('tf-login-gate')?.remove();
-    tfBoot();
-  tfBoot();
+
+    render();
+
+  } catch (error) {
+    tfSyncReady = false;
+    tfShowLogin(
+      'Could not load shared data: ' + error.message
+    async function tfSignOut() {);
+   tfBoot();
   </script>
   </body>
   </html>
-  } catch (error) {
+    } catch (error) {
     tfSyncReady = false;
     tfShowLogin('Could not load shared data: ' + error.message);
+  }
+}
   }
 }
 
@@ -386,6 +400,11 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');
 document.addEventListener('input',e=>{if(e.target.matches('[data-search]')){searchTerm=e.target.value;const pos=e.target.selectionStart;render();const el=document.querySelector('[data-search]');if(el){el.focus();el.setSelectionRange(pos,pos)}}});
 document.addEventListener('change',e=>{if(e.target.matches('[data-breakadj]')){if(e.target.checked&&!S.breakingAdjs.includes(e.target.dataset.breakadj))S.breakingAdjs.push(e.target.dataset.breakadj);if(!e.target.checked)S.breakingAdjs=S.breakingAdjs.filter(x=>x!==e.target.dataset.breakadj);save()}});
 render();
+     } catch (error) {
+    tfSyncReady = false;
+    tfShowLogin('Could not load shared data: ' + error.message);
+  }
+}
 </script>
 </body>
 </html>
