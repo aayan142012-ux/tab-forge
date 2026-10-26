@@ -352,11 +352,107 @@ return pageHead('Open / High School break','Preview the teams qualifying for eac
 function breakingAdjsPage(){const rows=S.adjudicators.map(a=>`<tr><td><input type="checkbox" data-breakadj="${a.id}" ${S.breakingAdjs.includes(a.id)?'checked':''}></td><td><b>${esc(a.name)}</b></td><td>${esc(a.institution||'—')}</td><td>${esc(a.rating??'Unrated')}</td><td>${S.breakingAdjs.includes(a.id)?badge('Selected','green'):badge('Not selected')}</td></tr>`).join('');
 return pageHead('Breaking adjudicators','Select the adjudicators eligible for elimination rounds.',btn('Save selection','save:breakingadjs')+btn('Export list','export:breakingadjs','secondary'))+`<div class="notice">Select eligible adjudicators using your tournament's published criteria. This screen records selection; it does not automatically decide adjudicator eligibility.</div><div class="panel">${table(['Select','Adjudicator','Institution','Rating','Status'],rows||rowEmpty(5,'No adjudicators','Add adjudicators first.'))}</div>`}
 function teamStandings(){return S.teams.map(t=>{const bs=S.ballots.filter(b=>b.status==='confirmed'&&b.teamScores&&b.teamScores[t.id]);return {t,wins:bs.filter(b=>b.winnerTeam===t.id).length,points:S.ballots.filter(b=>b.status==='confirmed').flatMap(b=>b.scores||[]).filter(s=>S.participants.some(p=>p.id===s.participantId&&p.teamId===t.id)).reduce((a,s)=>a+Number(s.score||0),0)}}).sort((a,b)=>b.wins-a.wins||b.points-a.points)}
-function showModal(title,fields,values,onSave,submitLabel='Save'){
-const root=document.getElementById('modalRoot');root.innerHTML=`<div class="modalback"><form class="modal" id="editForm"><h3>${title}</h3><div class="formgrid">${fields.map(f=>`<div class="field ${f.full?'full':''}"><label>${f.label}</label>${f.type==='textarea'?`<textarea name="${f.name}" placeholder="${esc(f.placeholder||'')}">${esc(values[f.name]??'')}</textarea>`:f.type==='select'?`<select name="${f.name}">${(f.options||[]).map(o=>`<option value="${esc(o.value)}" ${String(values[f.name]??f.default??'')===String(o.value)?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`:`<input name="${f.name}" type="${f.type||'text'}" value="${esc(values[f.name]??'')}" placeholder="${esc(f.placeholder||'')}" ${f.required?'required':''} ${f.min!==undefined?'min="'+f.min+'"':''} ${f.max!==undefined?'max="'+f.max+'"':''}>`}</div>`).join('')}</div><div class="modalfoot"><button type="button" class="secondary" id="cancelModal">Cancel</button><button type="submit">${submitLabel}</button></div></form></div>`;
-root.querySelector('#cancelModal').onclick=()=>root.innerHTML='';root.querySelector('.modalback').addEventListener('click',e=>{if(e.target.classList.contains('modalback'))root.innerHTML=''});
-root.querySelector('#editForm').onsubmit=e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target).entries());onSave(data);root.innerHTML='';save();render();toast('Saved successfully')};
+function showModal
+function showModal(title, fields, values, onSave, submitLabel = 'Save') {
+  const root = document.getElementById('modalRoot');
+
+  if (!root) {
+    console.error('TabForge: modalRoot element not found.');
+    return;
+  }
+
+  const escapeHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[char]);
+
+  const fieldHtml = fields.map((f) => {
+    const name = escapeHtml(f.name);
+    const label = escapeHtml(f.label);
+    const value = values[f.name] ?? f.default ?? '';
+    const placeholder = escapeHtml(f.placeholder || '');
+    let control = '';
+
+    if (f.type === 'textarea') {
+      control =
+        '<textarea name="' + name +
+        '" placeholder="' + placeholder + '"' +
+        (f.required ? ' required' : '') + '>' +
+        escapeHtml(value) +
+        '</textarea>';
+    } else if (f.type === 'select') {
+      const options = (f.options || []).map((o) => {
+        const selected =
+          String(value) === String(o.value) ? ' selected' : '';
+
+        return '<option value="' + escapeHtml(o.value) +
+          '"' + selected + '>' +
+          escapeHtml(o.label) +
+          '</option>';
+      }).join('');
+
+      control = '<select name="' + name + '"' +
+        (f.required ? ' required' : '') + '>' +
+        options + '</select>';
+    } else {
+      control =
+        '<input name="' + name +
+        '" type="' + escapeHtml(f.type || 'text') +
+        '" value="' + escapeHtml(values[f.name] ?? '') +
+        '" placeholder="' + placeholder + '"' +
+        (f.required ? ' required' : '') +
+        (f.min !== undefined ? ' min="' + escapeHtml(f.min) + '"' : '') +
+        (f.max !== undefined ? ' max="' + escapeHtml(f.max) + '"' : '') +
+        '>';
+    }
+
+    return '<div class="field' + (f.full ? ' full' : '') + '">' +
+      '<label>' + label + '</label>' +
+      control +
+      '</div>';
+  }).join('');
+
+  root.innerHTML =
+    '<div class="modalback">' +
+      '<form class="modal" id="editForm">' +
+        '<h3>' + escapeHtml(title) + '</h3>' +
+        '<div class="formgrid">' + fieldHtml + '</div>' +
+        '<div class="modalfoot">' +
+          '<button type="button" class="secondary" id="cancelModal">Cancel</button>' +
+          '<button type="submit">' + escapeHtml(submitLabel) + '</button>' +
+        '</div>' +
+      '</form>' +
+    '</div>';
+
+  root.querySelector('#cancelModal').onclick = () => {
+    root.innerHTML = '';
+  };
+
+  root.querySelector('.modalback').addEventListener('click', (event) => {
+    if (event.target.classList.contains('modalback')) {
+      root.innerHTML = '';
+    }
+  });
+
+  root.querySelector('#editForm').onsubmit = (event) => {
+    event.preventDefault();
+
+    const data = Object.fromEntries(
+      new FormData(event.target).entries()
+    );
+
+    onSave(data);
+    root.innerHTML = '';
+    save();
+    render();
+    toast('Saved successfully');
+  };
 }
+
 const field=(name,label,opts={})=>({name,label,...opts});
 function newItem(type,id=null){
 const existing=id?({participant:S.participants,institution:S.institutions,team:S.teams,adjudicator:S.adjudicators,motion:S.motions,reply:S.replyScores}[type]||[]).find(x=>x.id===id):null;
