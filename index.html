@@ -238,8 +238,11 @@ async function tfBoot() {
 
     tfSyncReady = true;
     document.getElementById('tf-login-gate')?.remove();
-    render();
-
+    tfBoot();
+  tfBoot();
+  </script>
+  </body>
+  </html>
   } catch (error) {
     tfSyncReady = false;
     tfShowLogin('Could not load shared data: ' + error.message);
