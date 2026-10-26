@@ -246,10 +246,14 @@ async function tfBoot() {
 
     render();
 
+    render();
+
   } catch (error) {
     tfSyncReady = false;
-    tfShowLogin(
-      'Could not load shared data: ' + error.message
+    tfShowLogin('Could not load shared data: ' + error.message);
+  }
+}
+
     async function tfSignOut() {);
    tfBoot();
   </script>
